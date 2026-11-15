@@ -1,0 +1,122 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PELAJAR)
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  ADMIN
+  PELAJAR
+}
+
+model Material {
+  id          String       @id @default(cuid())
+  title       String
+  filename    String
+  filePath    String
+  uploadedBy  String
+  order       Int          @default(0)
+  createdAt   DateTime     @default(now())
+  chunks      Chunk[]
+  questions   Question[]
+  lessonPlans LessonPlan[]
+}
+
+model LessonPlan {
+  id         String   @id @default(cuid())
+  materialId String
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  title      String
+  createdAt  DateTime @default(now())
+  lessons    Lesson[]
+}
+
+model Lesson {
+  id              String           @id @default(cuid())
+  lessonPlanId    String
+  lessonPlan      LessonPlan       @relation(fields: [lessonPlanId], references: [id], onDelete: Cascade)
+  order           Int
+  title           String
+  summary         String
+  keyPoints       Json
+  content         String
+  keyTerms        Json
+  /// Peringatan pemeriksa fakta otomatis (string[]); kosong = tidak perlu ditinjau / sudah ditinjau guru
+  warnings        Json             @default("[]")
+  createdAt       DateTime         @default(now())
+  lessonQuestions LessonQuestion[]
+  quizAttempts    QuizAttempt[]
+}
+
+model LessonQuestion {
+  id        String       @id @default(cuid())
+  lessonId  String
+  lesson    Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  type      QuestionType
+  question  String
+  answer    String
+  order     Int          @default(0)
+  /// Umpan balik tersimpan (RAG), disiapkan di latar belakang setelah soal dibuat/diubah; null = belum disiapkan
+  hints       Json?
+  explanation String?
+  sourceQuote String?
+  createdAt DateTime     @default(now())
+
+  @@index([lessonId])
+}
+
+model QuizAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  lessonId       String
+  lesson         Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  score          Int
+  totalQuestions Int
+  correctCount   Int
+  answers        Json
+  createdAt      DateTime @default(now())
+
+  @@index([userId, lessonId])
+}
+
+model Chunk {
+  id         String                      @id @default(cuid())
+  materialId String
+  material   Material                    @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  content    String
+  embedding  Unsupported("vector(768)")?
+  chunkIndex Int
+}
+
+model Question {
+  id         String       @id @default(cuid())
+  materialId String
+  material   Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  type       QuestionType
+  question   String
+  answer     String
+  /// Umpan balik tersimpan (RAG), disiapkan di latar belakang setelah soal dibuat/diubah; null = belum disiapkan
+  hints       Json?
+  explanation String?
+  sourceQuote String?
+  createdAt  DateTime     @default(now())
+}
+
+enum QuestionType {
+  ISIAN_SINGKAT
+  BENAR_SALAH
+}
